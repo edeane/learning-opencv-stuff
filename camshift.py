@@ -4,10 +4,11 @@
 Created on Sat Oct 28 13:13:43 2017
 
 @author: applesauce
+
+https://www.pyimagesearch.com/wp-content/uploads/2014/11/opencv_crash_course_camshift.pdf?__s=ugii8jwnb5wda2ppoczc
 """
 
 import numpy as np
-import argparse
 import cv2
 
 frame = None
