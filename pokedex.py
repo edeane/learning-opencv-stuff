@@ -66,34 +66,30 @@ class ZernikeMoments():
         return mahotas.features.zernike_moments(image, self.radius)
     
 
-desc = ZernikeMoments(21)
-index = {}
-dataset_path = 'images/pokedex/'
-dataset_list = [f for f in os.listdir(dataset_path) if f.endswith('.jpg')]
-
-for i, poke in enumerate(dataset_list[:5]):
-    image = cv2.imread(dataset_path+poke)
-    image = cv2.copyMakeBorder(image, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=(255,255,255))
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    #gray = cv2.GaussianBlur(gray, (5,5), 0)
-    thresh = cv2.bitwise_not(gray)
-    thresh[thresh>10] = 255
-    thresh[thresh<10] = 0
-    cv2.imshow('thresh', thresh)
-    outline = np.zeros(thresh.shape, dtype='uint8')
-    (_, cnts, _) = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[0]
-    cv2.drawContours(outline, [cnts], -1, (255, 255, 255), -1)
-    cv2.imshow('a{}'.format(i), np.hstack([gray, thresh, outline]))
-    moments = desc.describe(outline)
-    index[poke] = moments
-
-
-
-
-
-
-
+def create_index():
+    desc = ZernikeMoments(21)
+    index = {}
+    dataset_path = 'images/pokedex/'
+    dataset_list = [f for f in os.listdir(dataset_path) if f.endswith('.jpg')]
+    
+    for i, poke in enumerate(dataset_list):
+        image = cv2.imread(dataset_path+poke)
+        image = cv2.copyMakeBorder(image, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=(255,255,255))
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        #gray = cv2.GaussianBlur(gray, (5,5), 0)
+        thresh = cv2.bitwise_not(gray)
+        thresh[thresh>10] = 255
+        thresh[thresh<10] = 0
+        cv2.imshow('thresh', thresh)
+        outline = np.zeros(thresh.shape, dtype='uint8')
+        (_, cnts, _) = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[0]
+        cv2.drawContours(outline, [cnts], -1, (255, 255, 255), -1)
+        cv2.imshow('a{}'.format(i), np.hstack([gray, thresh, outline]))
+        moments = desc.describe(outline)
+        index[poke] = moments
+    
+    pickle.dump(index, open('images/pokedex/index.pkl', 'wb'))
 
 
 
@@ -102,4 +98,4 @@ for i, poke in enumerate(dataset_list[:5]):
 
 
 if __name__ == '__main__':
-    pass
+    create_index()
