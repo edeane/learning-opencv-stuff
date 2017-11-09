@@ -34,18 +34,18 @@ def scrape_poke():
             parsedName = 'nidoran-f'
         elif name.find(u'\u2642') != -1:
             parsedName = 'nidoran-m'
-        url = 'https://img.pokemondb.net/artwork/{}.jpg'.format(parsedName)
+        url = 'https://img.pokemondb.net/sprites/red-blue/normal/{}.png'.format(parsedName)
         r = requests.get(url)
         if r.status_code != 200:
             print('[x] error downloading {}'.format(parsedName))
             continue
         print('[x] downloading {}'.format(parsedName))
-        f = open('images/pokedex/{}.jpg'.format(name.lower()), 'wb')
+        f = open('images/pokedex/sprites/red-blue/{}.png'.format(name.lower()), 'wb')
         f.write(r.content)
         f.close()
         
 def my_test():
-    image = cv2.imread('images/pokedex/eevee.jpg')
+    image = cv2.imread('images/pokedex/sprites/eevee.jpg')
     image = cv2.copyMakeBorder(image, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=(255,255,255))
     cv2.imshow('image', image)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -72,25 +72,29 @@ class ZernikeMoments():
 def create_index():
     desc = ZernikeMoments(21)
     index = {}
-    dataset_path = 'images/pokedex/'
-    dataset_list = [f for f in os.listdir(dataset_path) if f.endswith('.jpg')]
-    
+    dataset_path = 'images/pokedex/sprites/red-blue/'
+    dataset_list = [f for f in os.listdir(dataset_path) if f.endswith('.png')]
     for i, poke in enumerate(dataset_list):
         image = cv2.imread(dataset_path+poke)
-        image = cv2.copyMakeBorder(image, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=(255,255,255))
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        #gray = cv2.GaussianBlur(gray, (5,5), 0)
-        thresh = cv2.bitwise_not(gray)
-        thresh[thresh>10] = 255
-        thresh[thresh<10] = 0
-        outline = np.zeros(thresh.shape, dtype='uint8')
-        (_, cnts, _) = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[0]
-        cv2.drawContours(outline, [cnts], -1, (255, 255, 255), -1)
+        outline = create_outline(image)
         moments = desc.describe(outline)
         index[poke] = moments
-    
     pickle.dump(index, open('images/pokedex/index.pkl', 'wb'))
+    
+    
+def create_outline(image):
+    image = cv2.copyMakeBorder(image, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=(255,255,255))
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #gray = cv2.GaussianBlur(gray, (5,5), 0)
+    thresh = cv2.bitwise_not(gray)
+    thresh[thresh>10] = 255
+    thresh[thresh<10] = 0
+    outline = np.zeros(thresh.shape, dtype='uint8')
+    (_, cnts, _) = cv2.findContours(thresh.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[0]
+    cv2.drawContours(outline, [cnts], -1, (255, 255, 255), -1)
+    return outline
+    
     
 def resize(image, width = None, height = None, inter = cv2.INTER_AREA):
 	dim = None
@@ -108,7 +112,7 @@ def resize(image, width = None, height = None, inter = cv2.INTER_AREA):
 
 
 def get_gameboy():
-    image = cv2.imread('images/pokedex/gameboy.jpg')
+    image = cv2.imread('images/pokedex/gameboy/query_kadabra.jpg')
     ratio = image.shape[0] / 300
     orig = image.copy()
     image = resize(image, height=300)
@@ -153,7 +157,16 @@ def get_gameboy():
     dX, dY = (int(w*.4), int(h*.45))
     crop = warp_after[10:dY, w-dX:w-10]
     cv2.imshow('crop', crop)
-    cv2.imwrite('images/pokedex/gameboy_guy.png', crop)
+    cv2.imwrite('images/pokedex/gameboy/query.png', crop)
+
+
+def show_xy():
+    xy = np.zeros((300, 500, 3))
+    locations = ((10,20), (390,290), (10,290), (390,20))
+    for loc in locations:
+        cv2.putText(xy, str(loc), loc, cv2.FONT_HERSHEY_SIMPLEX, .6, (255,255,255), 2)
+    cv2.imshow('xy', xy)
+
 
 class Searcher():
     def __init__(self, index):
@@ -167,21 +180,35 @@ class Searcher():
         return results
 
 
+def search_for_poke():
+    index = pickle.load(open('images/pokedex/index.pkl', 'rb'))
+    image = cv2.imread('images/pokedex/gameboy/query.png')
+    #image = cv2.copyMakeBorder(image, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=(255,255,255))
+    image = resize(image, height=56)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #ret, thresh = cv2.threshold(image.copy(), 245, 255, cv2.THRESH_BINARY_INV)
+    thresh = cv2.adaptiveThreshold(image.copy(), 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+#    canny = cv2.Canny(thresh, 90, 170)
+#    cv2.imshow('canny', canny)
+    outline = np.zeros(thresh.shape, dtype='uint8')
+    (_, cnts, _) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[0]
+    cv2.drawContours(outline, [cnts], -1, (255, 255, 255), -1)    
+    desc = ZernikeMoments(21)
+    queryFeatures = desc.describe(outline)
+    searcher = Searcher(index)
+    results = searcher.search(queryFeatures)
+    result = results[0][1]
+    print('that pokemon is: {}'.format(result.split('.')[0]))
+    result_image = cv2.imread('images/pokedex/sprites/red-blue/'+result)
+    cat_image = cv2.cvtColor(np.hstack([image, thresh, outline]), cv2.COLOR_GRAY2BGR)
+    cv2.imshow('result image', np.hstack([cat_image, result_image]))
 
-def show_xy():
-    xy = np.zeros((300, 500, 3))
-    locations = ((10,20), (390,290), (10,290), (390,20))
-    for loc in locations:
-        cv2.putText(xy, str(loc), loc, cv2.FONT_HERSHEY_SIMPLEX, .6, (255,255,255), 2)
-    cv2.imshow('xy', xy)
-    
+
+
 
 if __name__ == '__main__':
-    show_xy()
-    get_gameboy()
-    
-    
-    
+    search_for_poke()
     
     
     
